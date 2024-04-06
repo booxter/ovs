@@ -895,9 +895,7 @@ ovsdb_torture_test () {
     remove_server() {
         local i=$1
         printf "\ns$i: removing from cluster\n"
-        AT_CHECK([ovs-appctl -t "`pwd`"/s$i cluster/leave Open_vSwitch])
-        printf "\ns$i: waiting for removal to complete\n"
-        AT_CHECK([ovsdb_client_wait --log-file=remove$i.log unix:s$i.ovsdb $schema removed])
+        AT_CHECK([ovs-appctl -t "`pwd`"/s$i cluster/leave --wait Open_vSwitch])
         stop_server $i
     }
     add_server() {

@@ -4908,7 +4908,7 @@ raft_unixctl_status(struct unixctl_conn *conn,
 }
 
 static void
-raft_unixctl_leave__(struct unixctl_conn *conn, struct raft *raft)
+raft_unixctl_leave__(struct unixctl_conn *conn, struct raft *raft, bool wait)
 {
     if (raft_is_leaving(raft)) {
         unixctl_command_reply_error(conn,
@@ -4921,12 +4921,24 @@ raft_unixctl_leave__(struct unixctl_conn *conn, struct raft *raft)
                                     "can't leave after failure");
     } else {
         raft_leave(raft);
+        if (wait) {
+            for (;;) {
+                if (!raft_is_leaving(raft) && !raft_left(raft)) {
+                    unixctl_command_reply_error(conn,
+                                                "leave interrupted");
+                }
+                if (raft_left(raft)) {
+                    break;
+                }
+                xnanosleep(1E8); /* 0.1s */
+            }
+        }
         unixctl_command_reply(conn, NULL);
     }
 }
 
 static void
-raft_unixctl_leave(struct unixctl_conn *conn, int argc OVS_UNUSED,
+raft_unixctl_leave(struct unixctl_conn *conn, int argc,
                    const char *argv[], void *aux OVS_UNUSED)
 {
     struct raft *raft = raft_lookup_by_name(argv[1]);
@@ -4935,7 +4947,16 @@ raft_unixctl_leave(struct unixctl_conn *conn, int argc OVS_UNUSED,
         return;
     }
 
-    raft_unixctl_leave__(conn, raft);
+    bool wait = false;
+    if (argc == 2) {
+        if (strcmp(argv[2], "--wait")) {
+            unixctl_command_reply_error(conn, "invalid argument");
+            return;
+        }
+        wait = true;
+    }
+
+    raft_unixctl_leave__(conn, raft, wait);
 }
 
 static struct raft_server *
@@ -4982,7 +5003,7 @@ raft_unixctl_kick(struct unixctl_conn *conn, int argc OVS_UNUSED,
     }
 
     if (uuid_equals(&server->sid, &raft->sid)) {
-        raft_unixctl_leave__(conn, raft);
+        raft_unixctl_leave__(conn, raft, false);
     } else if (raft->role == RAFT_LEADER) {
         const struct raft_remove_server_request rq = {
             .sid = server->sid,
@@ -5188,7 +5209,7 @@ raft_init(void)
                              raft_unixctl_sid, NULL);
     unixctl_command_register("cluster/status", "DB", 1, 1,
                              raft_unixctl_status, NULL);
-    unixctl_command_register("cluster/leave", "DB", 1, 1,
+    unixctl_command_register("cluster/leave", "DB [--wait]", 1, 2,
                              raft_unixctl_leave, NULL);
     unixctl_command_register("cluster/kick", "DB SERVER", 2, 2,
                              raft_unixctl_kick, NULL);
