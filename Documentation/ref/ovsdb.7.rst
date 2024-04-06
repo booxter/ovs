@@ -315,16 +315,27 @@ The above methods for adding and removing servers only work for healthy
 clusters, that is, for clusters with no more failures than their maximum
 tolerance.  For example, in a 3-server cluster, the failure of 2 servers
 prevents servers joining or leaving the cluster (as well as database access).
+
 To prevent data loss or inconsistency, the preferred solution to this problem
 is to bring up enough of the failed servers to make the cluster healthy again,
 then if necessary remove any remaining failed servers and add new ones.  If
-this cannot be done, though, use ``ovs-appctl`` to invoke ``cluster/leave
---force`` on a running server.  This command forces the server to which it is
-directed to leave its cluster and form a new single-node cluster that contains
-only itself.  The data in the new cluster may be inconsistent with the former
-cluster: transactions not yet replicated to the server will be lost, and
-transactions not yet applied to the cluster may be committed.  Afterward, any
-servers in its former cluster will regard the server to have failed.
+this cannot be done, though:
+
+- stop ``ovsdb-server`` before proceeding!
+- ``ovsdb-tool cluster-to-standalone`` to convert database file to standalone;
+- back up the standalone database file;
+- re-initialize the cluster with a single member (``ovsdb-tool
+  create-cluster``), using the backup database file;
+- start ``ovsdb-server`` again.
+
+Once you confirmed that the single member cluster is up and running and serves
+the restored data, you can proceed with joining the rest of the members to the
+newly formed cluster, as usual (``ovsdb-tool join-cluster``).
+
+Note: The data in the new cluster may be inconsistent with the former cluster:
+transactions not yet replicated to the server will be lost, and transactions
+not yet applied to the cluster may be committed.  Afterward, any servers in its
+former cluster will regard the server to have failed.
 
 Once a server leaves a cluster, it may never rejoin it.  Instead, create a new
 server and join it to the cluster.
