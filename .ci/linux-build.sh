@@ -77,10 +77,10 @@ function clang_analyze()
 }
 
 if [ "$DEB_PACKAGE" ]; then
-    ./boot.sh && ./configure --with-dpdk=$DPDK && make debian
+    ./boot.sh && ./configure --with-dpdk=$DPDK $EXTRA_OPTS && make debian
     mk-build-deps --install --root-cmd sudo --remove debian/control
     dpkg-checkbuilddeps
-    make debian-deb
+    make debian-deb EXTRA_CONFIGURE_OPTS="$EXTRA_OPTS"
     packages=$(ls $(pwd)/../*.deb)
     deps=""
     for pkg in $packages; do
